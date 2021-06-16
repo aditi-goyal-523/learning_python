@@ -1,37 +1,68 @@
+import sys
+import argparse
+import seqlib
+
+parser=argparse.ArgumentParser(description="Global alignment using SW alg")
+parser.add_argument("--s1", required=True, type=str, metavar='<path>')
+parser.add_argument("--s2", required=True, type=str, metavar='<path>')
+parser.add_argument("--match", required=True, type=int)
+parser.add_argument("--mismatch", required=True, type=int)
+parser.add_argument("--indel", required=True, type=int)
+arg = parser.parse_args()
+
+'''
+for debugging, this example is from wikipedia
 seqa = "TGTTACGG"
 seqb = "GGTTGACTA"
+'''
 
-#wewrite with traceback
+file1= seqlib.read_fasta(arg.s1)
+file2= seqlib.read_fasta(arg.s2)
 
+seqa=""
+seqb=""
+for name, seq, in file1:
+	seqa=seqa+seq
 
-def print_matrix(m):
-    for i in m:
-        print(i)
-    print("---------------")
+for name, seq in file2:
+	seqb=seqb+seq
+#make score and direction matrix
 
-
-#1 constructing the grid
+seqa=" "+seqa
+seqb=" "+seqb
+cols=len(seqa)
+rows=len(seqb)
 matrix = []
 directions = []
-header = list(seqa)
-header.insert(0, None)
-header.insert(0, None)
-matrix.append(header)
 
-blank = [None] * len(header)
-matrix.append(blank)
+	#setting up matrix dimensions
+for i in range(rows):
+	row= [None] * (cols)
+	row_d=[None] * cols
+	#set first number in each row = 0
+	row[0]=0
+	row_d[0]="N"
+	#row.append(rest)
+	matrix.append(row)
+	directions.append(row_d)
 
-for i in range(len(seqb)):
-    row = []
-    row.append(seqb[i])
-    for j in range(len(header) - 1):
-        row.append(None)
-    matrix.append(row)
+#set first row to 0
+matrix[0]= [0] * cols
+directions[0]=["N"] * cols
+#create a matrix printer
+def printer(m):
+	print("   ", "  ".join(seqa))
+	for i in range(rows):
+		print(seqb[i], "", m[i])
 
 #scoring
-match = 3
-mismatch = -3
-indel = -2
+match = arg.match
+mismatch = arg.mismatch
+indel = arg.indel
+
+#make the direction key
+dir_score={"D": 0, "T": None, "L": None, "N": 0}
+
 '''
 equations:
 i=row
@@ -39,114 +70,64 @@ j=col
 left=x[j-1]+indel
 diag=x[i-1][j-1]+match/mismatch
 top=x[i-1]+indel
-
 chose the maximum of these 3 equations
 '''
 
-matrix[1][1] = 0
+max_score=0
+max_coord=(0, 0)
 
-#start with matrix row 1 (i=1)
-#start with matrix col 2 (j=2)
-max_score = 0
-max_coord = (1, 1)
-for i in range(1, len(matrix)):
-    for j in range(1, len(matrix[i])):
-        if i == 1:
-            #top and diagonal can't be calculated, just assign the left value
-            if matrix[i][j] != None:
-                continue
-            else:
-                matrix[i][j] = 0
-        elif j == 1:
-            #diagnonal and left can't be calculated, just assign top value
-            if matrix[i][j] != None:
-                continue
-            else:
-                matrix[i][j] = 0
-        else:
-            #now they're all fair game
-            if matrix[i][j] != None:
-                continue
-            else:
-                top = (matrix[i - 1][j] + indel)
-                left = (matrix[i][j - 1] + indel)
+#begin scoring
+for i in range(1, rows): #indexing the row
+	for j in range(1, cols): #indexing the column
+		if matrix[i][j] != None:
+			continue
+		else:
+			dir_score["T"]=matrix[i - 1][j] + indel
+			dir_score["L"]=matrix[i][j - 1] + indel
+			#diagonal calculations
+			if seqa[j] == seqb[i]:
+				dir_score["D"]=matrix[i - 1][j - 1] + match
+			else:
+				dir_score["D"]=matrix[i - 1][j - 1] + mismatch
 
-                #diagonal calculations
-                row_nt = matrix[0][j]
-                col_nt = matrix[i][0]
-                if row_nt == col_nt:
-                    diag = (matrix[i - 1][j - 1] + match)
-                else:
-                    diag = (matrix[i - 1][j - 1] + mismatch)
+			#filling in the score matrix
+			all_vals=dir_score.values()
+			score=max(all_vals)
+			matrix[i][j] = score
 
-                maximum = max(0, top, left, diag)
-                matrix[i][j] = maximum
-                if maximum >= max_score:
-                    max_score = maximum
-                    max_coord = (i, j)
+			#filling in direction matrix
+			directions[i][j]=max(dir_score, key=dir_score.get)
 
-#finding local maximum
-maxvalue = matrix[1][1]
-maxcoord = (1, 1)
+			if score >= max_score:
+				max_score = score
+				max_coord = (i, j)
 
-for i in range(1, len(matrix)):
-    for j in range(1, len(matrix[i])):
-        valholder = matrix[i][j]
-        if valholder > maxvalue:
-            maxvalue = matrix[i][j]
-            maxcoord = (i, j)
-            print(f"new maximum set at {maxvalue} found at {maxcoord}")
+#traceback
+#start at the max coordinate
 
-#alignment
-alignment = []
-topseq = [matrix[0][maxcoord[1]]]
-leftseq = [matrix[maxcoord[0]][0]]
+i=i = max_coord[0]
+j = max_coord[1]
 
-i = maxcoord[0]
-j = maxcoord[1]
-pos = matrix[i][j]
+seq_a=["SEQA"]
+seq_b=["SEQB"]
 
-while i > 1:
-    '''
-	for each position we basically need to redo the calculations from before
-	use that to find directions
-	then backtrace
-	'''
-    pos = matrix[i][j]
-    top = (matrix[i - 1][j] + indel)
-    left = (matrix[i][j - 1] + indel)
-
-    #diagonal calculations
-    row_nt = matrix[0][j]
-    col_nt = matrix[i][0]
-    if row_nt == col_nt: diag = (matrix[i - 1][j - 1] + match)
-    else: diag = (matrix[i - 1][j - 1] + mismatch)
-    if pos == diag:
-        if matrix[i - 1][j - 1] != 0:
-            print(pos)
-            leftseq.insert(0, matrix[i - 1][0])
-            topseq.insert(0, matrix[0][j - 1])
-            print("T:", topseq)
-            print("L:", leftseq)
-            print("-------")
-            i -= 1
-            j -= 1
-    elif pos == top:
-        if matrix[i - 1][j] != 0:
-            print(pos)
-            leftseq.insert(0, matrix[i - 1][0])
-            topseq.insert(0, "-")
-            print("T:", topseq)
-            print("L:", leftseq)
-            print("-------")
-            i -= 1
-    elif pos == left:
-        if matrix[i][j - 1] != 0:
-            print(pos)
-            leftseq.insert(0, "-")
-            topseq.insert(0, matrix[0][j - 1])
-            print("T:", topseq)
-            print("L:", leftseq)
-            print("-------")
-            j -= 1
-            continue
+while (i >= 0) and (j>=0):
+	dir=directions[i][j]
+	if dir == "D":
+		seq_a.append(seqa[j])
+		seq_b.append(seqb[i])
+		i-=1
+		j-=1
+	elif dir == "L":
+		seq_a.append(seqa[j])
+		seq_b.append("-")
+		j-=1
+	elif dir == "T":
+		seq_a.append("-")
+		seq_b.append(seqb[i])
+		i-=1
+	elif dir == "N":
+		print(seq_a)
+		print(seq_b)
+		break
+printer(matrix)
