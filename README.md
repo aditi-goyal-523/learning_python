@@ -53,10 +53,8 @@ this program counts the kmers in a provided sequence. It takes in a path to a fa
 
 * note: this program will not register kmers that contain "N"
 
-# Programs in Development
-
 ## needlemanwunsch.py
 this program simulates the Needleman Wunsch global alignment algorithm. It takes 2 files as well as match, mismatch, and indel point values, and returns a optimal sequence alignment.
 
 ## smithwaterman.py
-this program simulates the Smith Waterman global alignment algorithm. It takes 2 files as well as match, mismatch, and indel point values, and returns a optimal sequence alignment.
+this program simulates the Smith Waterman local alignment algorithm. It takes 2 files as well as match, mismatch, and indel point values, and returns a optimal sequence alignment.
